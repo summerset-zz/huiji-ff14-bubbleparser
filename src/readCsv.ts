@@ -2,8 +2,32 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { NPCBallonCsv, NPCYellCsv, NPCInstanceContentTextCsv, UnifiedBalloon, UnifiedLanguageText, Languages } from './types/csvTypes';
 import csv from 'csv-parser';
-import chalk from 'chalk'
+import chalk from 'chalk';
 
+// 需要全局跳过的UID。这些UID将不会入库。
+const SKIP_UIDS = [
+    'BA-2983',
+    'BA-3140',
+    'IC-8900',
+    'IC-18729',
+    'IC-18730',
+    'IC-23700',
+    'YE-2450',
+    'YE-2454',
+    'YE-2473',
+    'YE-2487',
+    'YE-2593',
+    'YE-4085',
+    'YE-4186'
+]
+
+
+// 需要人工替换的文本。key为UID，value为需要替换的文本。该文本将“合并”到原有数据中。
+const MANUAL_REPLACER: Record<string, Partial<UnifiedLanguageText>> = {
+    "IC-12306": { "text_EN": "Welcome, <军衔>!1 Let's get those maimin' muscles warmed up, shall we?" },
+    "IC-12321": { "text_EN": "I've long awaited this chance,<军衔Lieutenant/Captain><玩家名>!" },
+
+}
 
 const getCsvFileContent = async (csvPath: string) => {
     const fileContent: any[] = [];
@@ -72,9 +96,7 @@ const purify = (text: string) => {
     output = output.replace(/\r\n/g, '<br />').replace(/\n/g, '<br />');
 
     output = output.trim();
-    if (output.length > 400) {
-        console.log(chalk.yellow('内容过长:'), output);
-    }
+
     return output
 }
 
@@ -97,7 +119,8 @@ const purify = (text: string) => {
         for (let i = 2; i < fileContent.length; i++) {
             const row = fileContent[i];
             const key = row[Object.keys(row)[2]];
-            const uid = `BA${key}`;
+            const uid = `BA-${key}`;
+
             if (result.has(uid)) {
                 result.get(uid)![`text_${lang}` as keyof UnifiedLanguageText] = purify(row['1']);
             }
@@ -117,7 +140,8 @@ const purify = (text: string) => {
         for (let i = 2; i < instanceContentTextFileContent.length; i++) {
             const row = instanceContentTextFileContent[i];
             const key = row[Object.keys(row)[1]];
-            const uid = `IC${key}`;
+            const uid = `IC-${key}`;
+
             if (result.has(uid)) {
                 result.get(uid)![`text_${lang}` as keyof UnifiedLanguageText] = purify(row['0']);
             }
@@ -141,7 +165,8 @@ const purify = (text: string) => {
             const row = yellFileContent[i];
 
             const key = row[Object.keys(row)[Object.keys(row).length - 1]];
-            const uid = `YE${key}`;
+            const uid = `YE-${key}`;
+
             if (result.has(uid)) {
                 result.get(uid)![`text_${lang}` as keyof UnifiedLanguageText] = purify(row['11']);
             }
@@ -181,7 +206,7 @@ const purify = (text: string) => {
         };
         console.log(`BA条目: ${stats.BA}, IC条目: ${stats.IC}, YE条目: ${stats.YE}, 总条目: ${stats.total}`);
     };
-    console.log('删除未使用的条目前:');
+    console.log('删除无效的条目前:');
     getStats();
 
     const checkTextStarter = (text: string) => {
@@ -228,13 +253,29 @@ const purify = (text: string) => {
             // if allSame contains hiragana or katakana, return true
             const containsKanaRegex = /[\u3040-\u30FF]/;
             if (containsKanaRegex.test(firstValue)) {
-                console.log(chalk.yellow('内容相同的假名条目:'), `uid: ${entry.uid}, content: ${firstValue}`);
+                console.log(chalk.yellow('已删除内容相同的假名条目:'), `uid: ${entry.uid}, content: ${firstValue}`);
                 return true;
             }
         }
     }
 
+    // 删除需要跳过的提哦啊木
+    for (let uid of SKIP_UIDS) {
+        if (result.has(uid)) {
+            console.log(chalk.yellow('已删除要求跳过的UID条目:'), uid);
+            result.delete(uid);
+        }
+    }
+
+
     for (let [key, value] of result) {
+        // 合并人工维护的条目
+        if (MANUAL_REPLACER[key]) {
+            Object.assign(value, MANUAL_REPLACER[key]);
+            console.log(chalk.yellow('已合并人工维护的UID条目:'), key);
+        }
+
+
         if (checkAllHiragana(value)) {
             result.delete(key);
             continue;
@@ -258,6 +299,24 @@ const purify = (text: string) => {
     }
     console.log('删除未使用的条目后:');
     getStats();
+
+
+    const oversizedEntries: Record<string, UnifiedBalloon> = {};
+    for (let [key, value] of result) {
+        for (let lang of languages) {
+            if (!value[`text_${lang}`]) { continue };
+            if (value[`text_${lang}`]!.length >= 400) {
+                oversizedEntries[key] = value;
+                break;
+            }
+        }
+    }
+    console.log(chalk.yellow('以下条目内容长度超过400字(以UID标记):'));
+    for (let key in oversizedEntries) {
+        console.log(key);
+    }
+    console.log(chalk.yellow('超长的条目已输出到output/oversizedEntries.json'));
+    fs.writeFileSync('./output/oversizedEntries.json', JSON.stringify(oversizedEntries, null, 4));
 
 
     fs.writeFileSync('./output/unified_npc_balloon_allentries.json', JSON.stringify([...result.values()], null, 4));

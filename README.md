@@ -1,26 +1,56 @@
-# FF14WIKI NPC发言整合化项目 - NODE部分
-2025年1月19日
+# FF14维基 - 整合化NPC发言项目 - Node脚本部分
 
-## 此前版本的问题
-* `{{ballonAsk}}`一次可以查一个发言ID的多个语言数据，但是通常页面上需要查询多个数据。因此需要考虑在调用模板时输入多个发言ID，并仅进行一次查询来获取多条、多个语言的数据。
-* NPC发言数据目前分为Ballon、InstanceContentTextData、NpcYell三种。如果希望WIKI侧使用统一的方法查询，则数据格式也应当保持一致。
-* WIKI上的语言选择控件需要改进。计划改成控件能控制页面上所有的Ballon，多个控件之间相互联动。该功能不在NODE部分考虑范围之内。
+本项目用于将Balloon、InstanceContentTextData、NpcYell的多语言CSV文件整合为符合FF14维基要求的tabx格式JSON文件，同时提供了上传到Wiki的脚本。
 
-## 目前已有的资料
-Celes提供了CHS、KO、DE、EN、FR、JA六种语言的，上述三种发言类型的数据，CSV格式。
+## 项目结构
 
-目前CSV的格式大致如下：
+```
+input/                  -- 文件输入目录
+output/                 -- 文件输出目录
+src/                    -- 代码根目录
+    types/              -- Typescript类型定义
+    readCsv.ts          -- 读取CSV，生成allentries.json
+    writeTabx.ts        -- 数据分段，输出tabx格式的json
+    uploadTabx.ts       -- 上传到维基
+.env                    -- 敏感环境变量。本repo不提供本文件
+.env.sample             -- 用于创建上述文件的模板
+```
 
-| key   | 0        | 1        | ... |
-| ----- | -------- | -------- | --- |
-| #     | col1     | col2     | ... |
-| int32 | bit&01   | str      | ... |
-| id    | 具体数据 | 具体数据 | ... |
-| ...   | ...      | ...      | ... |
+## 使用方法
+使用前请先安装依赖。
 
-## 计划
+### 关于UID
+UID是通过数据类型和其原始来源表中的ID（key）生成的新唯一ID。格式为`{类型缩写}-{原始ID}`。
 
-1. 编写针对这种格式CSV的parser，先将三类数据的CSV数据整理为`Record<string,any>[]`。
-2. 根据三类数据的格式制定新的type，并将数据导出为这种type的格式。
-3. 后续需要整理为tabx格式并上传到wiki。单个tabx会超出wiki的限制，因此需要拆分成多个tabx，并增加统一的dataType字段用于查询。具体拆分方式待定。
-4. 上传tabx的方式有直接生成json格式的tabx和先生成xlsx再由wiki解析两种，待定。
+类型缩写分别为`BA`、`IC`、`NY`，分别对应下一节提到的三种类型。
+
+### 1. 读取CSV文件
+将CSV文件放在input目录中。文件名格式应当符合`{类型}{版本}{语言}.csv`的规范。其中：
+* 类型为`['Balloon','InstanceContentTextData','NpcYell']`
+* 版本为`['7.15','7.05']`
+* 语言为`['KO', 'EN', 'JA', 'CHS', 'FR', 'DE']`
+
+例如：`InstanceContentTextData7.15EN.csv`
+
+如希望扩展版本和语言，可在readCsv中进行配置。其中版本是有先后顺序的，读取文件时将优先取用新版本文件。
+
+此外还可以通过该文件头部的`SKIP-UIDS`配置需要强行跳过的条目UID，也可以通过配置`MANUAL_REPLACER`强行覆盖指定条目的指定语言数据。
+
+运行NPM脚本中的`read`指令可开始处理。完成后，output目录中将生成以下三个文件：
+* `unified_npc_balloon_allentries.json` 所有条目
+* `oversizedEntries.json` 某一语言数据超过400字的条目（tabx格式限制）
+* `tags.json` 出现的所有tag，用于后续进行替换。
+
+### 2. 数据分段
+在完成第一步后，运行`generate`指令。脚本将会把`unified_npc_balloon_allentries.json`中的数据按照2500条一组进行分段，并按照tabx要求的格式存放在`unified_npc_balloon_chunk_{n}.json`分段文件中。
+
+此时，控制台会打印各分段的文件大小。由于灰机wiki单个页面20MB的限制，所以请检查当前分段方案是否合理。可以通过调整`buildTabxChunk()`的第二个参数控制分段条目数。
+
+### 3. 上传
+上传前，请先配置灰机的用户信息。在根目录下创建文件`.env`，并按照`.env.sample`中的格式填写相关信息。
+* WIKI_USERNAME、WIKI_PASSWORD：你的灰机用户名和密码
+* WIKI_API_AUTH_KEY：灰机API的key，请向灰机管理组申请。
+
+>   ***以上信息切勿提交到repo***
+
+配置完成后，运行`upload`指令即可。chunk文件将会上传到FF14维基同名（但不同后缀名）的、Data命名空间下的tabx文件中。

@@ -67,9 +67,5 @@ if (!WIKI_USERNAME || !WIKI_PASSWORD || !WIKI_API_AUTH_KEY) {
     }
     console.log(chalk.green('所有任务完成。'));
     console.log(`成功上传${stats.success}个分段，失败${stats.failed}个分段。`);
-
-
-
-
 })()
 

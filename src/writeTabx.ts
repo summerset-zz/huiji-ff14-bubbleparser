@@ -5,7 +5,6 @@ import chalk from 'chalk';
 
 type UnifiedBalloonTabxColumns = [string, string, number, string, string, string, string, string, string, string];
 const buildTabxChunk = (data: UnifiedBalloon[], chunkSize = 2500): TabxType<UnifiedBalloonTabxColumns>[] => {
-
     const chunks: TabxType<UnifiedBalloonTabxColumns>[] = [];
     console.log(`共有${data.length}条数据。按照当前的chunkSize=${chunkSize}，将分为${Math.ceil(data.length / chunkSize)}个文件。`);
     for (let i = 0; i < data.length; i += chunkSize) {
@@ -61,11 +60,6 @@ const buildTabxChunk = (data: UnifiedBalloon[], chunkSize = 2500): TabxType<Unif
             fs.unlinkSync(`./output/${file}`);
         }
     })
-
-
-
-
-
     const fileContent = fs.readFileSync(filePath, 'utf-8');
     const data: UnifiedBalloon[] = JSON.parse(fileContent);
 

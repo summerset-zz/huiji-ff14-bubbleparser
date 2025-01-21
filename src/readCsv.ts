@@ -1,8 +1,12 @@
 import * as fs from 'fs';
-import * as path from 'path';
-import type { NPCBallonCsv, NPCYellCsv, NPCInstanceContentTextCsv, UnifiedBalloon, UnifiedLanguageText, Languages } from './types/csvTypes';
+import type { UnifiedBalloon, UnifiedLanguageText, Languages } from './types/csvTypes';
 import csv from 'csv-parser';
 import chalk from 'chalk';
+
+// 版本列表。请按照从新到旧的顺序排列。
+const versions: string[] = ['7.15', '7.05'];
+// 语言列表
+const languages = ['KO', 'EN', 'JA', 'CHS', 'FR', 'DE'] as Languages[];
 
 // 需要全局跳过的UID。这些UID将不会入库。
 const SKIP_UIDS = [
@@ -21,14 +25,17 @@ const SKIP_UIDS = [
     'YE-4186'
 ]
 
-
 // 需要人工替换的文本。key为UID，value为需要替换的文本。该文本将“合并”到原有数据中。
 const MANUAL_REPLACER: Record<string, Partial<UnifiedLanguageText>> = {
     "IC-12306": { "text_EN": "Welcome, <军衔>!1 Let's get those maimin' muscles warmed up, shall we?" },
     "IC-12321": { "text_EN": "I've long awaited this chance,<军衔Lieutenant/Captain><玩家名>!" },
-
 }
 
+/**
+ * 读取指定路径的csv文件内容
+ * @param csvPath 
+ * @returns 
+ */
 const getCsvFileContent = async (csvPath: string) => {
     const fileContent: any[] = [];
     await new Promise((resolve, reject) => {
@@ -40,8 +47,13 @@ const getCsvFileContent = async (csvPath: string) => {
     return fileContent;
 }
 
+/**
+ * 获取某一前缀、某一语言下的最新版本文件路径。
+ * @param prefix 
+ * @param lang 
+ * @returns 
+ */
 const getLatestFilePath = (prefix: string, lang: Languages) => {
-    const versions: string[] = ['7.15', '7.05'];
     let filePath = '';
     for (let version of versions) {
         filePath = `./input/${prefix}${version}${lang}.csv`;
@@ -53,19 +65,18 @@ const getLatestFilePath = (prefix: string, lang: Languages) => {
     console.error(chalk.red(`语言 ${lang}下的${prefix}文件不存在`));
     return '';
 }
+
+/** 用于标签统计的Map */
 const startTags = new Map<string, Set<string>>();
 const endTags = new Map<string, Set<string>>();
 const selfCloseTags = new Map<string, Set<string>>();
+
+/** 用于处理语言数据 */
 const purify = (text: string) => {
     let output = text;
-    // if a part matches '<tagName>' or '<tagName(xxxx)>', this is a startTag. set it to startTags.
-    // if a part matches '</tagName>', this is an endTag. set it to endTags.
-    // if a part matches '<tagName/>' or '<tagName(xxxx)>', this is a selfCloseTag. set it to selfCloseTags.
-
     const startTagRegex = /<(\w+)(\([^<>]*\))?>/g;
     const endTagRegex = /<\/(\w+)>/g;
     const selfCloseTagRegex = /<(\w+)(\([^)]*\))?\/>/g;
-
     const processMatches = (regex: RegExp, map: Map<string, Set<string>>) => {
         const matches = [...text.matchAll(regex)];
         matches.forEach(match => {
@@ -78,49 +89,33 @@ const purify = (text: string) => {
             }
         });
     };
-
     processMatches(startTagRegex, startTags);
     processMatches(endTagRegex, endTags);
     processMatches(selfCloseTagRegex, selfCloseTags);
 
-    // remove all tabs, remove spaces at beginning and end of it.
+    /** 实际处理工序 */
     output = text.replace(/\t/g, '').trim();
-
-    // output = output.replace(/<If(\([^<>]*\))?>/g, '<br />-条件-').replace(/<Case(\([^<>]*\))?>/g, '<br />-条件-').replace('<Indent/>', ' ').replace('<SoftHyphen/>', '-');
-
-    // relace all < > wrapped parts to ''
-    // output = output.replace(/<[^<>]*>/g, '');
-
-
-    // replace all \r\n to '<br />', then replace all \n to '<br />'
     output = output.replace(/\r\n/g, '<br />').replace(/\n/g, '<br />');
-
     output = output.trim();
-
     return output
 }
 
-
-
-
 (async () => {
-    const languages = ['KO', 'EN', 'JA', 'CHS', 'FR', 'DE'] as Languages[];
-    const versions: string[] = ['7.15', '7.05'];
     const result = new Map<string, UnifiedBalloon>();
-
-
-
-
     for (let lang of languages) {
-        // ballon文件
+
+
+        // balloon文件
         const balloonCsvPath = getLatestFilePath('Balloon', lang);
         const fileContent = await getCsvFileContent(balloonCsvPath);
-
         for (let i = 2; i < fileContent.length; i++) {
             const row = fileContent[i];
+            /**
+             * 这里的大坑：虽然csv-parser读取到了ID列的表头为“key”，但是用字符串'key'访问不到这一列的值。
+             * 其中可能有零宽字符。因此使用Object.keys(row)[2]来获取第三列。下略。
+             */
             const key = row[Object.keys(row)[2]];
             const uid = `BA-${key}`;
-
             if (result.has(uid)) {
                 result.get(uid)![`text_${lang}` as keyof UnifiedLanguageText] = purify(row['1']);
             }
@@ -134,6 +129,10 @@ const purify = (text: string) => {
                 })
             }
         }
+
+
+
+
         // InstanceContentText文件
         const instanceContentTextCsvPath = getLatestFilePath('InstanceContentTextData', lang);
         const instanceContentTextFileContent = await getCsvFileContent(instanceContentTextCsvPath);
@@ -141,7 +140,6 @@ const purify = (text: string) => {
             const row = instanceContentTextFileContent[i];
             const key = row[Object.keys(row)[1]];
             const uid = `IC-${key}`;
-
             if (result.has(uid)) {
                 result.get(uid)![`text_${lang}` as keyof UnifiedLanguageText] = purify(row['0']);
             }
@@ -160,13 +158,10 @@ const purify = (text: string) => {
         // Yell文件
         const yellCsvPath = getLatestFilePath('NpcYell', lang);
         const yellFileContent = await getCsvFileContent(yellCsvPath);
-
         for (let i = 2; i < yellFileContent.length; i++) {
             const row = yellFileContent[i];
-
             const key = row[Object.keys(row)[Object.keys(row).length - 1]];
             const uid = `YE-${key}`;
-
             if (result.has(uid)) {
                 result.get(uid)![`text_${lang}` as keyof UnifiedLanguageText] = purify(row['11']);
             }
@@ -183,31 +178,17 @@ const purify = (text: string) => {
 
     }
 
-    // 做一道筛选
-
+    // 筛选和统计
     const getStats = () => {
-        const stats = {
-            BA: 0,
-            IC: 0,
-            YE: 0,
-            total: 0
-        }
+        const stats = { BA: 0, IC: 0, YE: 0, total: 0 }
         for (let [key, value] of result) {
             stats.total++;
-            if (value.source === 'BA') {
-                stats.BA++;
-            }
-            else if (value.source === 'IC') {
-                stats.IC++;
-            }
-            else if (value.source === 'YE') {
-                stats.YE++;
-            }
+            if (value.source === 'BA') { stats.BA++; }
+            else if (value.source === 'IC') { stats.IC++; }
+            else if (value.source === 'YE') { stats.YE++; }
         };
         console.log(`BA条目: ${stats.BA}, IC条目: ${stats.IC}, YE条目: ${stats.YE}, 总条目: ${stats.total}`);
     };
-    console.log('删除无效的条目前:');
-    getStats();
 
     const checkTextStarter = (text: string) => {
         const falseTextStarts = ['未使用',
@@ -259,7 +240,7 @@ const purify = (text: string) => {
         }
     }
 
-    // 删除需要跳过的提哦啊木
+    // 删除需要跳过的条目
     for (let uid of SKIP_UIDS) {
         if (result.has(uid)) {
             console.log(chalk.yellow('已删除要求跳过的UID条目:'), uid);
@@ -267,40 +248,30 @@ const purify = (text: string) => {
         }
     }
 
-
+    console.log('删除无效的条目前:');
+    getStats();
     for (let [key, value] of result) {
         // 合并人工维护的条目
         if (MANUAL_REPLACER[key]) {
             Object.assign(value, MANUAL_REPLACER[key]);
             console.log(chalk.yellow('已合并人工维护的UID条目:'), key);
         }
-
-
-        if (checkAllHiragana(value)) {
-            result.delete(key);
-            continue;
-        };
+        if (checkAllHiragana(value)) { result.delete(key); continue; };
         let hasText = false;
         for (let lang of languages) {
             const text = value[`text_${lang}`];
-            if (text
-                && text !== '0'
-                && checkTextStarter(text)
-
-            ) {
+            if (text && text !== '0' && checkTextStarter(text)) {
                 hasText = true;
                 break;
             }
-
         }
-        if (!hasText) {
-            result.delete(key);
-        }
+        if (!hasText) { result.delete(key); }
     }
+
     console.log('删除未使用的条目后:');
     getStats();
 
-
+    // 检查是否有超长的条目
     const oversizedEntries: Record<string, UnifiedBalloon> = {};
     for (let [key, value] of result) {
         for (let lang of languages) {
@@ -317,11 +288,9 @@ const purify = (text: string) => {
     }
     console.log(chalk.yellow('超长的条目已输出到output/oversizedEntries.json'));
     fs.writeFileSync('./output/oversizedEntries.json', JSON.stringify(oversizedEntries, null, 4));
-
-
     fs.writeFileSync('./output/unified_npc_balloon_allentries.json', JSON.stringify([...result.values()], null, 4));
 
-    function mapToRecord(map: Map<string, Set<string>>): Record<string, string[]> {
+    function SetMapToRecord(map: Map<string, Set<string>>): Record<string, string[]> {
         const record: Record<string, string[]> = {}
         map.forEach((value, key) => {
             record[key] = [...value.values()];
@@ -329,9 +298,9 @@ const purify = (text: string) => {
         return record;
     }
     const tags = {
-        startTags: mapToRecord(startTags),
-        endTags: mapToRecord(endTags),
-        selfCloseTags: mapToRecord(selfCloseTags)
+        startTags: SetMapToRecord(startTags),
+        endTags: SetMapToRecord(endTags),
+        selfCloseTags: SetMapToRecord(selfCloseTags)
     }
     fs.writeFileSync('./output/tags.json', JSON.stringify(tags, null, 4))
 

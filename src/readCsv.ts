@@ -4,7 +4,7 @@ import csv from 'csv-parser';
 import chalk from 'chalk';
 
 // 版本列表。请按照从新到旧的顺序排列。
-const versions: string[] = ['7.15', '7.05'];
+const versions: string[] = ['7.15', '7.1', '7.05'];
 // 语言列表
 const languages = ['KO', 'EN', 'JA', 'CHS', 'FR', 'DE'] as Languages[];
 
@@ -58,7 +58,7 @@ const getLatestFilePath = (prefix: string, lang: Languages) => {
     for (let version of versions) {
         filePath = `./input/${prefix}${version}${lang}.csv`;
         if (fs.existsSync(filePath)) {
-            console.log(chalk.green(`语言 ${lang}下的${prefix}文件: ${filePath}`));
+            console.log(chalk.green(`语言 ${lang}下的${prefix}文件: ${prefix}${version}${lang}.csv`));
             return filePath;
         }
     }

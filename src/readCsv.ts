@@ -96,6 +96,19 @@ const purify = (text: string) => {
     /** 实际处理工序 */
     output = text.replace(/\t/g, '').trim();
     output = output.replace(/\r\n/g, '<br />').replace(/\n/g, '<br />');
+    output = output.replace(/<Emphasis>/g, '<i>').replace(/<\/Emphasis>/g, '</i>');
+    output = output.replace(/<Emphasis2>/g, '<i>').replace(/<\/Emphasis2>/g, '</i>');
+    output = output.replace(/<Highlight>/g, '<b>').replace(/<\/Highlight>/g, '</b>');
+    output = output.replace(/<UIForeground>([^<>]+)<\/UIForeground>/g, '');
+    output = output.replace(/<UIGlow>([^<>]+)<\/UIGlow>/g, '');
+    output = output.replace(/<SoftHyphen\/>/g, '');
+    output = output.replace(/<Indent\/>/g, ' ');
+    output = output.replace(/ObjectParameter\(1\)/g, '<玩家名称>');
+    output = output.replace(/ObjectParameter\(56\)/g, '<副本名称>');
+    output = output.replace(/<If\(PlayerParameter\(4\)\)>/g, '<If(玩家为女性)>');
+    output = output.replace(/PlayerParameter\(71\)/g, '<玩家种族>');
+    output = output.replace(/<If\(Equal\(PlayerParameter\(80\),0\)\)>/g, '<If(使用键盘)>');
+    output = output.replace(/PlayerParameter\(11\)/g, '<当前时间>');
     output = output.trim();
     return output
 }

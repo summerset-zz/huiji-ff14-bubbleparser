@@ -4,7 +4,7 @@ import csv from 'csv-parser';
 import chalk from 'chalk';
 
 // 版本列表。请按照从新到旧的顺序排列。
-const versions: string[] = ['7.15', '7.1', '7.05'];
+const versions: string[] = ['7.21', '7.15', '7.11', '7.1', '7.05'];
 // 语言列表
 const languages = ['KO', 'EN', 'JA', 'CHS', 'FR', 'DE'] as Languages[];
 

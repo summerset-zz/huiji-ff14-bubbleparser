@@ -7,16 +7,21 @@
   "scripts": {
     "read": "node --loader ts-node/esm src/readCsv.ts",
     "generate": "node --loader ts-node/esm src/writeTabx.ts",
-    "upload": "node --loader ts-node/esm src/uploadTabx.ts"
+    "upload": "node --loader ts-node/esm src/uploadTabx.ts",
+    "importwiki": "node --loader ts-node/esm src/importWiki.ts"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@types/node": "^20.9.2",
+    "axios": "^1.10.0",
+    "axios-cookiejar-support": "^6.0.3",
     "chalk": "^5.4.1",
     "csv-parser": "^3.1.0",
     "dotenv": "^16.4.7",
+    "form-data": "^4.0.3",
     "huijiwiki-api": "^0.7.1",
+    "tough-cookie": "^5.1.2",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.2"
   }

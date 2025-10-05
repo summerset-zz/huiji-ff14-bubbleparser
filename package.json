@@ -9,7 +9,8 @@
     "generate": "node --loader ts-node/esm src/writeTabx.ts",
     "upload": "node --loader ts-node/esm src/uploadTabx.ts",
     "importwiki": "node --loader ts-node/esm src/importWiki.ts",
-    "getRedirects": "node --loader ts-node/esm src/getRedirects.ts"
+    "getRedirects": "node --loader ts-node/esm src/getRedirects.ts",
+    "getSmwResults": "node --loader ts-node/esm src/getSmwResults.ts"
   },
   "author": "",
   "license": "ISC",

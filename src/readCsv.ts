@@ -9,6 +9,7 @@ import chalk from "chalk";
 
 // 版本列表。请按照从新到旧的顺序排列。
 const versions: string[] = [
+    "7.40",
     "7.31",
     "7.30",
     "7.25",
@@ -18,9 +19,19 @@ const versions: string[] = [
     "7.11",
     "7.1",
     "7.05",
+    "7.00",
 ];
 // 语言列表
-const languages = ["KO", "EN", "JA", "CHS", "FR", "DE"] as Languages[];
+const languages = ["KO", "EN", "JA", "CHS", "FR", "DE", "TC"] as Languages[];
+
+// 收集各语言的最新版本文件，用于统一排序与输出
+type LatestFile = {
+    lang: Languages;
+    version: string;
+    prefix: string;
+    filename: string;
+};
+const latestFiles: LatestFile[] = [];
 
 // 需要全局跳过的UID。这些UID将不会入库。
 const SKIP_UIDS = [
@@ -79,16 +90,62 @@ const getLatestFilePath = (prefix: string, lang: Languages) => {
     for (let version of versions) {
         filePath = `./input/${prefix}${version}${lang}.csv`;
         if (fs.existsSync(filePath)) {
-            console.log(
-                chalk.green(
-                    `语言 ${lang}下的${prefix}文件: ${prefix}${version}${lang}.csv`
-                )
-            );
+            const filename = `${prefix}${version}${lang}.csv`;
+            latestFiles.push({ lang, version, prefix, filename });
             return filePath;
         }
     }
     console.error(chalk.red(`语言 ${lang}下的${prefix}文件不存在`));
     return "";
+};
+
+// 统一输出表格（可根据需要调整排序规则）
+const printLatestFilesTable = () => {
+    const prefixOrder: Record<string, number> = {
+        Balloon: 0,
+        InstanceContentTextData: 1,
+        NpcYell: 2,
+    };
+    const sorted = [...latestFiles].sort((a, b) => {
+        const byLang = a.lang.localeCompare(b.lang);
+        if (byLang !== 0) return byLang;
+        const byPrefix =
+            (prefixOrder[a.prefix] ?? 99) - (prefixOrder[b.prefix] ?? 99);
+        if (byPrefix !== 0) return byPrefix;
+        // 版本按字符串比较（已为同语言同前缀的最新版本）
+        return a.version.localeCompare(b.version);
+    });
+    console.log("以下是各语言的最新版本文件：");
+    const LANG_W = 6;
+    const VERSION_W = 8;
+    const PREFIX_W = 28;
+    const pad = (s: string, w: number) => String(s).padEnd(w);
+    const maxFilenameLen = Math.max(
+        "Filename".length,
+        ...sorted.map((i) => i.filename.length)
+    );
+    // 打印表头与分隔线
+    console.log(
+        `${pad("Lang", LANG_W)}| ${pad("Version", VERSION_W)}| ${pad(
+            "Prefix",
+            PREFIX_W
+        )}| Filename`
+    );
+    console.log(
+        `${"-".repeat(LANG_W - 1)} | ${"-".repeat(
+            VERSION_W - 1
+        )} | ${"-".repeat(PREFIX_W - 1)} | ${"-".repeat(maxFilenameLen)}`
+    );
+    for (const item of sorted) {
+        const langCol = pad(item.lang, LANG_W);
+        const versionCol = pad(item.version, VERSION_W);
+        const prefixCol = pad(item.prefix, PREFIX_W);
+        console.log(
+            `${chalk.green(langCol)}| ${chalk.green(versionCol)}| ${chalk.green(
+                prefixCol
+            )}| ${chalk.green(item.filename)}`
+        );
+    }
 };
 
 /** 用于标签统计的Map */
@@ -135,6 +192,13 @@ const purify = (text: string) => {
     output = output
         .replace(/<Highlight>/g, "<b>")
         .replace(/<\/Highlight>/g, "</b>");
+    // 新增替换：压缩特殊占位以降低长度
+    // IntegerParameter(x) -> IntParam(x)
+    output = output.replace(/IntegerParameter\(([^)]*)\)/g, "IntParam($1)");
+    // 去除 <Value> 标签但保留内部内容
+    output = output.replace(/<\/?.?Value>/g, "");
+    // 去除 <TwoDigitValue> 标签但保留内部内容
+    output = output.replace(/<\/?TwoDigitValue>/g, "");
     output = output.replace(/<UIForeground>([^<>]+)<\/UIForeground>/g, "");
     output = output.replace(/<UIGlow>([^<>]+)<\/UIGlow>/g, "");
     output = output.replace(/<SoftHyphen\/>/g, "");
@@ -151,6 +215,12 @@ const purify = (text: string) => {
         "<If(使用键盘)>"
     );
     output = output.replace(/PlayerParameter\(11\)/g, "<当前时间>");
+
+    const sample =
+        "<Sheet(PlaceName,IntegerParameter(1),0)/><br /><Switch(IntegerParameter(2))><Case(1)>Rank B</Case><Case(2)>Rank A</Case><Case(3)>Rank S</Case></Switch><br /><Switch(IntegerParameter(3))><Case(1)>Activating in: <Value>IntegerParameter(4)</Value>:<TwoDigitValue>IntegerParameter(5)</TwoDigitValue></Case><Case(2)>Unclaimed</Case><Case(3)>Claimed <Gui(51)/></Case><Case(4)>Claimed <Gui(52)/></Case><Case(5)>Claimed <Gui(53)/></Case></Switch>";
+
+
+
     output = output.trim();
     return output;
 };
@@ -269,6 +339,9 @@ const purify = (text: string) => {
             }
         }
     }
+
+    // 收集完成后统一输出表格
+    printLatestFilesTable();
 
     // 筛选和统计
     const getStats = () => {

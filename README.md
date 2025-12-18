@@ -4,6 +4,7 @@
 
 ## 项目结构
 
+
 ```
 input/                  -- 文件输入目录
 output/                 -- 文件输出目录
@@ -12,13 +13,26 @@ src/                    -- 代码根目录
     readCsv.ts          -- 读取CSV，生成allentries.json
     writeTabx.ts        -- 数据分段，输出tabx格式的json
     uploadTabx.ts       -- 上传到维基
+    getSmwResults.ts    -- (临时)获取SMW查询结果，并输出到smwResults.json
+    getRedirects.ts     -- (临时)获取所有重定向，并处理成
 .env                    -- 敏感环境变量。本repo不提供本文件
 .env.sample             -- 用于创建上述文件的模板
+smwResults.json         -- (临时)smw结果
+redirects.json          -- (临时)重定向结果
+package.json            -- 项目及依赖定义
+tsconfig.json           -- TS配置文件
+README.md               -- 说明文档（本文档）
 ```
 
 ## 使用方法
-使用前请先安装依赖。
 
+### 环境准备
+1. 安装 [Node.js](https://nodejs.org/)（建议使用最新 LTS 版本）。
+2. 安装 Yarn：在命令行运行 `corepack enable`，然后运行 `corepack prepare yarn@stable --activate`。
+3. 在项目根目录运行 `yarn` 安装依赖。
+
+---
+下面为各脚本的使用说明：
 ### 关于UID
 UID是通过数据类型和其原始来源表中的ID（key）生成的新唯一ID。格式为`{类型缩写}-{原始ID}`。
 
@@ -54,3 +68,5 @@ UID是通过数据类型和其原始来源表中的ID（key）生成的新唯一
 >   ***以上信息切勿提交到repo***
 
 配置完成后，运行`upload`指令即可。chunk文件将会上传到FF14维基同名（但不同后缀名）的、Data命名空间下的tabx文件中。
+
+

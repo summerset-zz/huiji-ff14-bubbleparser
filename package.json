@@ -8,6 +8,7 @@
     "read": "node --loader ts-node/esm src/readCsv.ts",
     "generate": "node --loader ts-node/esm src/writeTabx.ts",
     "upload": "node --loader ts-node/esm src/uploadTabx.ts",
+    "upload-dry": "node --loader ts-node/esm src/uploadTabx.ts --dry-run",
     "importwiki": "node --loader ts-node/esm src/importWiki.ts",
     "getRedirects": "node --loader ts-node/esm src/getRedirects.ts",
     "getSmwResults": "node --loader ts-node/esm src/getSmwResults.ts"

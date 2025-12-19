@@ -6,19 +6,22 @@
 
 
 ```
-input/                  -- 文件输入目录
-output/                 -- 文件输出目录
+input/                  -- 文件输入目录（多语言CSV）
+output/                 -- 文件输出目录（中间结果与分段tabx）
 src/                    -- 代码根目录
+    consoleTabler.ts    -- 控制台表格渲染工具
     types/              -- Typescript类型定义
     readCsv.ts          -- 读取CSV，生成allentries.json
-    writeTabx.ts        -- 数据分段，输出tabx格式的json
-    uploadTabx.ts       -- 上传到维基
-    getSmwResults.ts    -- (临时)获取SMW查询结果，并输出到smwResults.json
-    getRedirects.ts     -- (临时)获取所有重定向，并处理成
-.env                    -- 敏感环境变量。本repo不提供本文件
-.env.sample             -- 用于创建上述文件的模板
-smwResults.json         -- (临时)smw结果
-redirects.json          -- (临时)重定向结果
+    writeTabx.ts        -- 按字节大小分段并输出tabx
+    uploadTabx.ts       -- 支持dry-run的上传脚本
+    importWiki.ts       -- 从维基导入已有tabx（可选）
+    getSmwResults.ts    -- (临时)获取SMW查询结果并输出smwResults.json
+    getRedirects.ts     -- (临时)获取重定向并输出redirects.json
+tools/                  -- 辅助脚本/工具
+.env                    -- 敏感环境变量（不入库）
+.env.sample             -- 环境变量模板
+smwResults.json         -- (临时)SMW结果缓存
+redirects.json          -- (临时)重定向结果缓存
 package.json            -- 项目及依赖定义
 tsconfig.json           -- TS配置文件
 README.md               -- 说明文档（本文档）
@@ -56,9 +59,10 @@ UID是通过数据类型和其原始来源表中的ID（key）生成的新唯一
 * `tags.json` 出现的所有tag，用于后续进行替换。
 
 ### 2. 数据分段
-在完成第一步后，运行`generate`指令。脚本将会把`unified_npc_balloon_allentries.json`中的数据按照2500条一组进行分段，并按照tabx要求的格式存放在`unified_npc_balloon_chunk_{n}.json`分段文件中。
+在完成第一步后，运行`generate`指令。脚本会按 UTF-8 实际字节大小分chunk（默认上限约 1_800_000 字节以适配 20MB 页面限制），并输出表格（chunk/size/entries/process time/stringify calls）展示每个分段的尺寸与耗时，然后将tabx格式内容写入`unified_npc_balloon_chunk_{n}.json`。
+* 2025-1219更新：优化了分段逻辑，现在chunk的内容会更紧密，chunk数量也会越少。
 
-此时，控制台会打印各分段的文件大小。由于灰机wiki单个页面20MB的限制，所以请检查当前分段方案是否合理。可以通过调整`buildTabxChunk()`的第二个参数控制分段条目数。
+如需调整分段大小，可以在`buildTabxChunkBySize`调用中修改字节上限参数；缩进已设为0以节省体积。
 
 ### 3. 上传
 上传前，请先配置灰机的用户信息。在根目录下创建文件`.env`，并按照`.env.sample`中的格式填写相关信息。

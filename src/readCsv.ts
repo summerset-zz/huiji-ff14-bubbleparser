@@ -6,6 +6,7 @@ import type {
 } from "./types/csvTypes";
 import csv from "csv-parser";
 import chalk from "chalk";
+import { ConsoleTablePrinter } from "./consoleTabler.js";
 
 // 版本列表。请按照从新到旧的顺序排列。
 const versions: string[] = [
@@ -116,36 +117,24 @@ const printLatestFilesTable = () => {
         return a.version.localeCompare(b.version);
     });
     console.log("以下是各语言的最新版本文件：");
-    const LANG_W = 6;
-    const VERSION_W = 8;
-    const PREFIX_W = 28;
-    const pad = (s: string, w: number) => String(s).padEnd(w);
-    const maxFilenameLen = Math.max(
-        "Filename".length,
-        ...sorted.map((i) => i.filename.length)
+    const rows = sorted.map((i) => [i.lang, i.version, i.prefix, i.filename]);
+    const headers = ["Lang", "Version", "Prefix", "Filename"];
+    // compute widths: max of header vs values
+    const widths = headers.map((h, idx) =>
+        Math.max(
+            h.length,
+            ...rows.map((r) => String(r[idx]).length)
+        )
     );
-    // 打印表头与分隔线
-    console.log(
-        `${pad("Lang", LANG_W)}| ${pad("Version", VERSION_W)}| ${pad(
-            "Prefix",
-            PREFIX_W
-        )}| Filename`
-    );
-    console.log(
-        `${"-".repeat(LANG_W - 1)} | ${"-".repeat(
-            VERSION_W - 1
-        )} | ${"-".repeat(PREFIX_W - 1)} | ${"-".repeat(maxFilenameLen)}`
-    );
-    for (const item of sorted) {
-        const langCol = pad(item.lang, LANG_W);
-        const versionCol = pad(item.version, VERSION_W);
-        const prefixCol = pad(item.prefix, PREFIX_W);
-        console.log(
-            `${chalk.green(langCol)}| ${chalk.green(versionCol)}| ${chalk.green(
-                prefixCol
-            )}| ${chalk.green(item.filename)}`
-        );
-    }
+    ConsoleTablePrinter
+        .create([
+            { header: headers[0], width: widths[0] },
+            { header: headers[1], width: widths[1] },
+            { header: headers[2], width: widths[2] },
+            { header: headers[3], width: widths[3] },
+        ])
+        .printHeader()
+        .pushMany(rows);
 };
 
 /** 用于标签统计的Map */
@@ -218,8 +207,6 @@ const purify = (text: string) => {
 
     const sample =
         "<Sheet(PlaceName,IntegerParameter(1),0)/><br /><Switch(IntegerParameter(2))><Case(1)>Rank B</Case><Case(2)>Rank A</Case><Case(3)>Rank S</Case></Switch><br /><Switch(IntegerParameter(3))><Case(1)>Activating in: <Value>IntegerParameter(4)</Value>:<TwoDigitValue>IntegerParameter(5)</TwoDigitValue></Case><Case(2)>Unclaimed</Case><Case(3)>Claimed <Gui(51)/></Case><Case(4)>Claimed <Gui(52)/></Case><Case(5)>Claimed <Gui(53)/></Case></Switch>";
-
-
 
     output = output.trim();
     return output;

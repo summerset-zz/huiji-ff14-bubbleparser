@@ -2,6 +2,7 @@ import { HuijiWiki } from "huijiwiki-api";
 import * as fs from "fs";
 import chalk from "chalk";
 import { config } from "dotenv";
+import stringWidth from "string-width";
 import { ConsoleTablePrinter } from "./consoleTabler.js";
 config();
 // Dry-run support: use --dry-run or -n or env DRY_RUN=1
@@ -59,20 +60,34 @@ if (!DRY_RUN && (!WIKI_USERNAME || !WIKI_PASSWORD || !WIKI_API_AUTH_KEY)) {
     );
 
     if (DRY_RUN) {
+        const rows: Array<[string, string, string, string]> = [];
         let exceedCount = 0;
         for (let i = 0; i < chunkFileNames.length; i++) {
             const fileName = chunkFileNames[i];
             const fullPath = `./output/${fileName}`;
             const size = fs.statSync(fullPath).size; // bytes
             const status =
-                size > LIMIT_BYTES ? chalk.red("EXCEEDS") : chalk.green("OK");
+                size > LIMIT_BYTES ? "EXCEEDS" : "OK";
             if (size > LIMIT_BYTES) exceedCount++;
-            console.log(
-                `- ${fileName}: ${size} bytes (${(size / 1024 / 1024).toFixed(
-                    3
-                )} MB) -> ${status}`
-            );
+            const pageTitle = `Data:${fileName.replace(".json", "")}.tabx`;
+            const sizeStr = `${size} bytes (${(size / 1024 / 1024).toFixed(
+                3
+            )} MB)`;
+            rows.push(["检查", pageTitle, sizeStr, status]);
         }
+        // Print table for dry-run results
+        const taskW = Math.max(stringWidth("任务"), ...rows.map((r) => stringWidth(r[0])));
+        const pageW = Math.max(stringWidth("页面"), ...rows.map((r) => stringWidth(r[1])));
+        const sizeW = Math.max(stringWidth("大小"), ...rows.map((r) => stringWidth(r[2])));
+        const statusW = Math.max(stringWidth("状态"), ...rows.map((r) => stringWidth(r[3])));
+        ConsoleTablePrinter.create([
+            { header: "任务", width: taskW },
+            { header: "页面", width: pageW },
+            { header: "大小", width: sizeW },
+            { header: "状态", width: statusW },
+        ])
+            .printHeader()
+            .pushMany(rows);
         if (exceedCount > 0) {
             console.log(
                 chalk.red(
@@ -112,14 +127,17 @@ if (!DRY_RUN && (!WIKI_USERNAME || !WIKI_PASSWORD || !WIKI_API_AUTH_KEY)) {
         potentialDeletePages.push(`Data:unified_npc_balloon_chunk_${i}.tabx`);
     }
     const pageW = Math.max(
-        "页面".length,
-        ...uploadPages.map((s) => s.length),
-        ...potentialDeletePages.map((s) => s.length)
+        stringWidth("页面"),
+        ...uploadPages.map((s) => stringWidth(s)),
+        ...potentialDeletePages.map((s) => stringWidth(s))
     );
-    const sizeW = Math.max("大小".length, ...uploadSizesStr.map((s) => s.length));
-    const taskW = Math.max("任务".length, "删除".length); // 任务栏宽度
-    const timeW = Math.max("耗时".length, "0.000s".length);
-    const statusW = Math.max("状态".length, "失败".length);
+    const sizeW = Math.max(
+        stringWidth("大小"),
+        ...uploadSizesStr.map((s) => stringWidth(s))
+    );
+    const taskW = Math.max(stringWidth("任务"), stringWidth("删除")); // 任务栏宽度
+    const timeW = Math.max(stringWidth("耗时"), stringWidth("0.000s"));
+    const statusW = Math.max(stringWidth("状态"), stringWidth("失败"));
     const table = ConsoleTablePrinter.create([
         { header: "任务", width: taskW },
         { header: "页面", width: pageW },

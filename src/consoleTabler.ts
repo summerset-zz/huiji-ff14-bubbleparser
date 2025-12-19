@@ -1,4 +1,28 @@
 import chalk from "chalk";
+import stringWidth from "string-width";
+
+const padEndDisplay = (s: string, width: number): string => {
+    let out = s;
+    while (stringWidth(out) < width) {
+        out += " ";
+    }
+    return out;
+};
+
+const truncateDisplay = (s: string, width: number): string => {
+    if (stringWidth(s) <= width) return s;
+    if (width <= 0) return "";
+    const ellipsis = width > 3 ? "..." : "";
+    const target = width - stringWidth(ellipsis);
+    if (target <= 0) return ellipsis.slice(0, width);
+    let out = "";
+    for (const ch of s) {
+        const next = out + ch;
+        if (stringWidth(next) > target) break;
+        out = next;
+    }
+    return out + ellipsis;
+};
 
 export type ConsoleTablerCell = string | number | boolean | null | undefined;
 export type ConsoleTablerRow = Record<string, ConsoleTablerCell>;
@@ -55,15 +79,18 @@ export const buildConsoleTableLines = (
     const widths = cols.map((c, idx) => {
         const isLast = idx === cols.length - 1;
         // For last column with padLastColumn=false, we still need width for header and separator
-        const maxValLen = Math.max(0, ...rows.map((r) => toStr(r[c]).length));
-        const headerLen = (headerNames[c] ?? c).length;
+        const maxValLen = Math.max(
+            0,
+            ...rows.map((r) => stringWidth(toStr(r[c])))
+        );
+        const headerLen = stringWidth(headerNames[c] ?? c);
         return Math.max(
             headerLen,
             isLast && !padLastColumn ? headerLen : maxValLen
         );
     });
 
-    const pad = (s: string, w: number) => s.padEnd(w);
+    const pad = (s: string, w: number) => padEndDisplay(s, w);
     const lines: string[] = [];
 
     const isHex = (s?: string): s is string =>
@@ -94,7 +121,7 @@ export const buildConsoleTableLines = (
         const isLast = i === cols.length - 1;
         const w =
             isLast && !padLastColumn
-                ? Math.max(widths[i], headerLabels[i].length)
+                ? Math.max(widths[i], stringWidth(headerLabels[i]))
                 : widths[i];
         return colorize("-".repeat(Math.max(1, w)), borderColorHex);
     });
@@ -133,19 +160,12 @@ export interface FixedColumnDef {
 export class ConsoleTablePrinter {
     private cols: FixedColumnDef[];
     private padEnd(s: string, width: number): string {
-        return s.padEnd(width);
+        return padEndDisplay(s, width);
     }
 
     private formatCell(value: ConsoleTablerCell, width: number): string {
-        let s = toStr(value);
-        if (s.length > width) {
-            if (width > 3) {
-                s = s.slice(0, width - 3) + "...";
-            } else {
-                s = s.slice(0, width);
-            }
-        }
-        return this.padEnd(s, width);
+        const truncated = truncateDisplay(toStr(value), width);
+        return this.padEnd(truncated, width);
     }
     static create(columns: FixedColumnDef[]) {
         return new ConsoleTablePrinter(columns);
@@ -191,10 +211,14 @@ export class ConsoleTablePrinter {
     pushMany(rows: Array<ConsoleTablerCell[] | ConsoleTablerRow>) {
         for (const r of rows) {
             if (Array.isArray(r)) {
-                const vals = this.cols.map((c, i) => this.formatCell(r[i], c.width));
+                const vals = this.cols.map((c, i) =>
+                    this.formatCell(r[i], c.width)
+                );
                 console.log(`| ${vals.join(" | ")} |`);
             } else {
-                const vals = this.cols.map((c) => this.formatCell(r[c.header], c.width));
+                const vals = this.cols.map((c) =>
+                    this.formatCell(r[c.header], c.width)
+                );
                 console.log(`| ${vals.join(" | ")} |`);
             }
         }

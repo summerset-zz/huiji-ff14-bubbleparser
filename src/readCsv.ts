@@ -35,7 +35,7 @@ type LatestFile = {
 const latestFiles: LatestFile[] = [];
 
 // 需要全局跳过的UID。这些UID将不会入库。
-const SKIP_UIDS = [
+const SKIP_UIDS: string[] = [
     "BA-2983",
     "BA-3140",
     "IC-8900",
@@ -44,7 +44,6 @@ const SKIP_UIDS = [
     "IC-23700",
     "YE-2450",
     "YE-2454",
-    "YE-2473",
     "YE-2487",
     "YE-2593",
     "YE-4085",
@@ -60,6 +59,10 @@ const MANUAL_REPLACER: Record<string, Partial<UnifiedLanguageText>> = {
     "IC-12321": {
         text_EN:
             "I've long awaited this chance,<军衔Lieutenant/Captain><玩家名>!",
+    },
+    "YE-2473": {
+        text_FR:
+            "(内容过长已被省略) Notez enfin qu'un bonus de 参数(2)% sera accordé  qui se présenteront à l'hôtesse dans l'heure ! Faites vite !",
     },
 };
 
@@ -121,18 +124,14 @@ const printLatestFilesTable = () => {
     const headers = ["Lang", "Version", "Prefix", "Filename"];
     // compute widths: max of header vs values
     const widths = headers.map((h, idx) =>
-        Math.max(
-            h.length,
-            ...rows.map((r) => String(r[idx]).length)
-        )
+        Math.max(h.length, ...rows.map((r) => String(r[idx]).length))
     );
-    ConsoleTablePrinter
-        .create([
-            { header: headers[0], width: widths[0] },
-            { header: headers[1], width: widths[1] },
-            { header: headers[2], width: widths[2] },
-            { header: headers[3], width: widths[3] },
-        ])
+    ConsoleTablePrinter.create([
+        { header: headers[0], width: widths[0] },
+        { header: headers[1], width: widths[1] },
+        { header: headers[2], width: widths[2] },
+        { header: headers[3], width: widths[3] },
+    ])
         .printHeader()
         .pushMany(rows);
 };
@@ -170,43 +169,82 @@ const purify = (text: string) => {
     processMatches(selfCloseTagRegex, selfCloseTags);
 
     /** 实际处理工序 */
+    // Trim tabs and normalize newlines to <br />
     output = text.replace(/\t/g, "").trim();
     output = output.replace(/\r\n/g, "<br />").replace(/\n/g, "<br />");
+    // Emphasis to italic
     output = output
         .replace(/<Emphasis>/g, "<i>")
         .replace(/<\/Emphasis>/g, "</i>");
+    // Emphasis2 to italic
     output = output
         .replace(/<Emphasis2>/g, "<i>")
         .replace(/<\/Emphasis2>/g, "</i>");
+    // Highlight to bold
     output = output
         .replace(/<Highlight>/g, "<b>")
         .replace(/<\/Highlight>/g, "</b>");
-    // 新增替换：压缩特殊占位以降低长度
-    // IntegerParameter(x) -> IntParam(x)
-    output = output.replace(/IntegerParameter\(([^)]*)\)/g, "IntParam($1)");
-    // 去除 <Value> 标签但保留内部内容
-    output = output.replace(/<\/?.?Value>/g, "");
-    // 去除 <TwoDigitValue> 标签但保留内部内容
-    output = output.replace(/<\/?TwoDigitValue>/g, "");
-    output = output.replace(/<UIForeground>([^<>]+)<\/UIForeground>/g, "");
-    output = output.replace(/<UIGlow>([^<>]+)<\/UIGlow>/g, "");
-    output = output.replace(/<SoftHyphen\/>/g, "");
-    output = output.replace(/<Indent\/>/g, " ");
-    output = output.replace(/ObjectParameter\(1\)/g, "<玩家名称>");
-    output = output.replace(/ObjectParameter\(56\)/g, "<副本名称>");
-    output = output.replace(
-        /<If\(PlayerParameter\(4\)\)>/g,
-        "<If(玩家为女性)>"
-    );
-    output = output.replace(/PlayerParameter\(71\)/g, "<玩家种族>");
+    // If keyboard branch
     output = output.replace(
         /<If\(Equal\(PlayerParameter\(80\),0\)\)>/g,
         "<If(使用键盘)>"
     );
-    output = output.replace(/PlayerParameter\(11\)/g, "<当前时间>");
+    // Shorten IntegerParameter
+    output = output.replace(/IntegerParameter\(([^)]*)\)/g, "参数($1)");
+    // GreaterThan(a,b) -> a＞b
+    output = output.replace(
+        /GreaterThan\(([^(),]*(?:\([^()]*\)[^(),]*)*),\s*([^)]*)\)/g,
+        "$1＞$2"
+    );
+    // LessThan(a,b) -> a＜b
+    output = output.replace(
+        /LessThan\(([^(),]*(?:\([^()]*\)[^(),]*)*),\s*([^)]*)\)/g,
+        "$1＜$2"
+    );
+    // Equal(a,b) -> a＝b
+    output = output.replace(
+        /Equal\(([^(),]*(?:\([^()]*\)[^(),]*)*),\s*([^)]*)\)/g,
+        "$1＝$2"
+    );
+    // LessThanOrEqualTo(a,b) -> a≤b
+    output = output.replace(
+        /LessThanOrEqualTo\(([^(),]*(?:\([^()]*\)[^(),]*)*),\s*([^)]*)\)/g,
+        "$1≤$2"
+    );
+    // Strip Value tags keep content
+    output = output.replace(/<\/.?Value>/g, "");
+    // Strip TwoDigitValue tags keep content
+    output = output.replace(/<\/?TwoDigitValue>/g, "");
+    // Strip ZeroPaddedValue tags keep content
+    output = output.replace(
+        /<ZeroPaddedValue[^>]*>(.+?)<\/ZeroPaddedValue>/g,
+        "$1"
+    );
+    // Remove UIForeground with content
+    output = output.replace(/<UIForeground>([^<>]+)<\/UIForeground>/g, "");
+    // Remove UIGlow with content
+    output = output.replace(/<UIGlow>([^<>]+)<\/UIGlow>/g, "");
+    // Remove soft hyphen
+    output = output.replace(/<SoftHyphen\/>/g, "");
+    // Indent to single space
+    output = output.replace(/<Indent\/>/g, " ");
+    // Player full name
+    output = output.replace(/ObjectParameter\(1\)/g, "<全名>");
+    // Duty name
+    output = output.replace(/ObjectParameter\(56\)/g, "<副本名称>");
+    // Split player name -> first/last
+    output = output.replace(/<Split\(<b><玩家名称><\/b>, ,1\)\/>/g, "<名字>");
+    output = output.replace(/<Split\(<b><玩家名称><\/b>, ,2\)\/>/g, "<姓氏>");
+    // Female player branch
+    output = output.replace(
+        /<If\(PlayerParameter\(4\)\)>/g,
+        "<If(玩家为女性)>"
+    );
+    // Player race
+    output = output.replace(/PlayerParameter\(71\)/g, "<种族>");
 
-    const sample =
-        "<Sheet(PlaceName,IntegerParameter(1),0)/><br /><Switch(IntegerParameter(2))><Case(1)>Rank B</Case><Case(2)>Rank A</Case><Case(3)>Rank S</Case></Switch><br /><Switch(IntegerParameter(3))><Case(1)>Activating in: <Value>IntegerParameter(4)</Value>:<TwoDigitValue>IntegerParameter(5)</TwoDigitValue></Case><Case(2)>Unclaimed</Case><Case(3)>Claimed <Gui(51)/></Case><Case(4)>Claimed <Gui(52)/></Case><Case(5)>Claimed <Gui(53)/></Case></Switch>";
+    // Current time
+    output = output.replace(/PlayerParameter\(11\)/g, "<时间>");
 
     output = output.trim();
     return output;
@@ -365,62 +403,66 @@ const purify = (text: string) => {
         }
         return true;
     };
-    const checkAllHiragana = (entry: UnifiedBalloon) => {
-        const texts: Partial<Record<string, string>> = {
-            text_KO: entry.text_KO,
-            text_EN: entry.text_EN,
-            text_JA: entry.text_JA,
-            text_CHS: entry.text_CHS,
-            text_FR: entry.text_FR,
-            text_DE: entry.text_DE,
-        };
-        for (let key in texts) {
-            if (
-                texts[key] == undefined ||
-                !checkTextStarter(texts[key] as string)
-            ) {
-                delete texts[key];
-            }
-        }
-        // check if all texts are same
-        let allSame = false;
-        const values = Object.values(texts);
-        if (values.length === 0) {
-            allSame = true;
-        }
-        const firstValue = values[0];
-        allSame = values.every((value) => value === firstValue);
 
-        if (allSame && firstValue) {
-            // if allSame contains hiragana or katakana, return true
-            const containsKanaRegex = /[\u3040-\u30FF]/;
-            if (containsKanaRegex.test(firstValue)) {
-                console.log(
-                    chalk.yellow("已删除内容相同的假名条目:"),
-                    `uid: ${entry.uid}, content: ${firstValue}`
-                );
-                return true;
-            }
+    // 如果存在text_JA且其他语言（有内容的）都与text_JA相同，则返回true
+
+    const placeHolderStat = new Map<string, string[]>();
+    const placeholderNormalizeRules: Array<{
+        regex: RegExp;
+        replacement: string | ((match: RegExpMatchArray) => string);
+    }> = [
+        { regex: /^未使用\d+$/, replacement: "未使用<num>" },
+        {
+            regex: /^未使用：[^：]+：会話\d+$/,
+            replacement: "未使用：*：会話<num>",
+        },
+        { regex: /^●\d+$/, replacement: "●<num>" },
+    ];
+
+    const normalizePlaceholderStatKey = (placeholder: string): string => {
+        for (const rule of placeholderNormalizeRules) {
+            const match = placeholder.match(rule.regex);
+            if (!match) continue;
+            return typeof rule.replacement === "string"
+                ? rule.replacement
+                : rule.replacement(match);
         }
+        return placeholder;
+    };
+    const placeHolderChecker = (entry: UnifiedBalloon): boolean => {
+        const ja = entry.text_JA;
+        if (!ja) return false;
+
+        for (const lang of languages) {
+            if (lang === "JA") continue;
+            const text = entry[`text_${lang}` as keyof UnifiedLanguageText];
+            if (!text) continue; // 无内容则跳过
+            if (text !== ja) return false;
+        }
+        const statKey = normalizePlaceholderStatKey(ja);
+        if (!placeHolderStat.has(statKey)) {
+            placeHolderStat.set(statKey, [entry.uid]);
+        } else {
+            placeHolderStat.get(statKey)!.push(entry.uid);
+        }
+
+        return true;
     };
 
     // 删除需要跳过的条目
     for (let uid of SKIP_UIDS) {
         if (result.has(uid)) {
-            console.log(chalk.yellow("已删除要求跳过的UID条目:"), uid);
+            console.log(chalk.yellow(`已删除要求跳过的UID条目: ${uid}`));
             result.delete(uid);
         }
     }
-
-    console.log("删除无效的条目前:");
-    getStats();
     for (let [key, value] of result) {
         // 合并人工维护的条目
         if (MANUAL_REPLACER[key]) {
             Object.assign(value, MANUAL_REPLACER[key]);
             console.log(chalk.yellow("已合并人工维护的UID条目:"), key);
         }
-        if (checkAllHiragana(value)) {
+        if (placeHolderChecker(value)) {
             result.delete(key);
             continue;
         }
@@ -437,8 +479,30 @@ const purify = (text: string) => {
         }
     }
 
-    console.log("删除未使用的条目后:");
-    getStats();
+    // 输出占位文本统计表（占位内容 -> 数量 & UID 列表）
+    if (placeHolderStat.size > 0) {
+        const rows = [...placeHolderStat.entries()].map(
+            ([placeholder, uids]) => [placeholder, uids.length]
+        );
+        const headers = ["Placeholder", "Count"];
+        const widths = headers.map((h, idx) => {
+            const contentWidth = Math.max(
+                h.length,
+                ...rows.map((r) => String(r[idx]).length)
+            );
+            // Limit placeholder column width to avoid overly wide tables
+            if (idx === 0) return Math.min(40, contentWidth);
+            return contentWidth;
+        });
+
+        console.log(`以下是占位文本统计表（所有非空语言内容相同）：`);
+        ConsoleTablePrinter.create([
+            { header: headers[0], width: 60 },
+            { header: headers[1], width: widths[1] },
+        ])
+            .printHeader()
+            .pushMany(rows.sort((a, b) => (b[1] as number) - (a[1] as number)));
+    }
 
     // 检查是否有超长的条目
     const oversizedEntries: Record<string, UnifiedBalloon> = {};
@@ -481,5 +545,55 @@ const purify = (text: string) => {
         endTags: SetMapToRecord(endTags),
         selfCloseTags: SetMapToRecord(selfCloseTags),
     };
-    fs.writeFileSync("./output/tags.json", JSON.stringify(tags, null, 4));
+    fs.writeFileSync(
+        "./output/tags-beforeReplace.json",
+        JSON.stringify(tags, null, 4)
+    );
+
+    // 收集替换后的标签统计
+    const afterStartTags = new Map<string, Set<string>>();
+    const afterEndTags = new Map<string, Set<string>>();
+    const afterSelfCloseTags = new Map<string, Set<string>>();
+
+    const startTagRegex = /<(\w+)(\([^<>]*\))?>/g;
+    const endTagRegex = /<\/(\w+)>/g;
+    const selfCloseTagRegex = /<(\w+)(\([^)]*\))?\/>/g;
+
+    for (const entry of result.values()) {
+        for (const lang of languages) {
+            const text = entry[`text_${lang}`];
+            if (!text) continue;
+
+            const processMatches = (
+                regex: RegExp,
+                map: Map<string, Set<string>>
+            ) => {
+                const matches = [...text.matchAll(regex)];
+                matches.forEach((match) => {
+                    const tagName = match[1];
+                    const matchedValue = match[0];
+                    if (!map.has(tagName)) {
+                        map.set(tagName, new Set<string>().add(matchedValue));
+                    } else {
+                        map.get(tagName)!.add(matchedValue);
+                    }
+                });
+            };
+
+            processMatches(startTagRegex, afterStartTags);
+            processMatches(endTagRegex, afterEndTags);
+            processMatches(selfCloseTagRegex, afterSelfCloseTags);
+        }
+    }
+    console.log("清理后的条目:");
+    getStats();
+    const tagsAfter = {
+        startTags: SetMapToRecord(afterStartTags),
+        endTags: SetMapToRecord(afterEndTags),
+        selfCloseTags: SetMapToRecord(afterSelfCloseTags),
+    };
+    fs.writeFileSync(
+        "./output/tags-afterReplace.json",
+        JSON.stringify(tagsAfter, null, 4)
+    );
 })();

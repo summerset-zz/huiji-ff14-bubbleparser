@@ -1,0 +1,53 @@
+== 替换匹配表（readCsv.ts 处理流程）==
+
+{| class="wikitable"
+! 原始内容/标签 !! 替换后 !! 备注
+|-
+| 制表符 (\t) || 移除 || 去除多余缩进
+|-
+| 换行 \r\n / \n || &lt;br /&gt; || 统一为 HTML 换行
+|-
+| &lt;Emphasis&gt;…&lt;/Emphasis&gt; / &lt;Emphasis2&gt;…&lt;/Emphasis2&gt; || &lt;i&gt;…&lt;/i&gt; || 斜体
+|-
+| &lt;Highlight&gt;…&lt;/Highlight&gt; || &lt;b&gt;…&lt;/b&gt; || 粗体
+|-
+| &lt;If(Equal(PlayerParameter(80),0))&gt; || &lt;If(使用键盘)&gt; || 键盘判定占位
+|-
+| IntegerParameter(n) || 参数(n) || 精简占位
+|-
+| GreaterThan(a,b) || a＞b || a/b 可能含括号或逗号
+|-
+| LessThan(a,b) || a＜b || a/b 可能含括号或逗号
+|-
+| Equal(a,b) || a＝b || a/b 可能含括号或逗号
+|-
+| LessThanOrEqualTo(a,b) || a≤b || a/b 可能含括号或逗号
+|-
+| &lt;Value&gt;…&lt;/Value&gt; || 仅保留内容 || 去标签
+|-
+| &lt;TwoDigitValue&gt;…&lt;/TwoDigitValue&gt; || 仅保留内容 || 去标签
+|-
+| &lt;ZeroPaddedValue …&gt;…&lt;/ZeroPaddedValue&gt; || 仅保留内容 || 去标签
+|-
+| &lt;UIForeground&gt;…&lt;/UIForeground&gt; || 移除（含内容） ||
+|-
+| &lt;UIGlow&gt;…&lt;/UIGlow&gt; || 移除（含内容） ||
+|-
+| &lt;SoftHyphen/&gt; || 移除 || 软连字符
+|-
+| &lt;Indent/&gt; || 单个空格 ||
+|-
+| ObjectParameter(1) || &lt;全名&gt; || 玩家全名占位
+|-
+| ObjectParameter(56) || &lt;副本名称&gt; || 副本名占位
+|-
+| &lt;Split(&lt;b&gt;&lt;玩家名称&gt;&lt;/b&gt;, ,1)/&gt; || &lt;名字&gt; || 名/姓分拆
+|-
+| &lt;Split(&lt;b&gt;&lt;玩家名称&gt;&lt;/b&gt;, ,2)/&gt; || &lt;姓氏&gt; || 名/姓分拆
+|-
+| &lt;If(PlayerParameter(4))&gt; || &lt;If(玩家为女性)&gt; || 性别判定占位
+|-
+| PlayerParameter(71) || &lt;种族&gt; || 玩家种族占位
+|-
+| PlayerParameter(11) || &lt;时间&gt; || 当前时间占位
+|}

@@ -3,6 +3,10 @@ import { TabxType } from "./types/tabxTypes";
 import * as fs from "fs";
 import chalk from "chalk";
 import { ConsoleTablePrinter } from "./consoleTabler.js";
+
+type CellLengthTracker = {
+    [uid: string]: { lang: string; content: string }[];
+};
 // verboseChrSize是测试时的大致估算（即标识符和缩进等字符的大致占位）。可以通过实际输出情况进行调整。
 const VERBOSE_CHR_SIZE = 300;
 // TABX_INDENT_SIZE是tabx文件的缩进大小。会极大影响VERBOSE_CHR_SIZE的准确性。
@@ -34,6 +38,7 @@ const buildTabxChunkBySize = (
 ): {
     chunks: TabxType<UnifiedBalloonTabxColumns>[];
     meta: { processTimeSec: number; stringifyCalls: number }[];
+    cellLengthTracker: CellLengthTracker;
 } => {
     console.log(
         chalk.blue(
@@ -42,20 +47,45 @@ const buildTabxChunkBySize = (
     );
     chunkSummaryTable.printHeader();
 
+    // 跟踪超过400字符的单元格
+    const cellLengthTracker: CellLengthTracker = {};
+
+    // 语言列表（与行的顺序对应）
+    const languages = ["KO", "EN", "JA", "CHS", "FR", "DE", "TC"];
+
     // 将一个条目转为表行
-    const toRow = (item: UnifiedBalloon): UnifiedBalloonTabxColumns => [
-        item.data_type,
-        item.uid,
-        item.id,
-        item.source,
-        item.text_KO ?? "",
-        item.text_EN ?? "",
-        item.text_JA ?? "",
-        item.text_CHS ?? "",
-        item.text_FR ?? "",
-        item.text_DE ?? "",
-        item.text_TC ?? "",
-    ];
+    const toRow = (item: UnifiedBalloon): UnifiedBalloonTabxColumns => {
+        const row: UnifiedBalloonTabxColumns = [
+            item.data_type,
+            item.uid,
+            item.id,
+            item.source,
+            item.text_KO ?? "",
+            item.text_EN ?? "",
+            item.text_JA ?? "",
+            item.text_CHS ?? "",
+            item.text_FR ?? "",
+            item.text_DE ?? "",
+            item.text_TC ?? "",
+        ];
+
+        // 检查单元格长度
+        for (let i = 4; i < row.length; i++) {
+            if (typeof row[i] === "string" && (row[i] as string).length > 400) {
+                const uid = row[1] as string;
+                const langIndex = i - 4; // 从索引4开始
+                const lang = languages[langIndex];
+                const content = row[i] as string;
+
+                if (!cellLengthTracker[uid]) {
+                    cellLengthTracker[uid] = [];
+                }
+                cellLengthTracker[uid].push({ lang, content });
+            }
+        }
+
+        return row;
+    };
 
     // 构造 chunk 对象（包含schema）
     const makeChunk = (
@@ -271,7 +301,7 @@ const buildTabxChunkBySize = (
         finalizeCurrentChunk();
     }
 
-    return { chunks, meta: chunkMeta };
+    return { chunks, meta: chunkMeta, cellLengthTracker };
 };
 
 (async () => {
@@ -292,7 +322,7 @@ const buildTabxChunkBySize = (
     const fileContent = fs.readFileSync(filePath, "utf-8");
     const data: UnifiedBalloon[] = JSON.parse(fileContent);
 
-    const { chunks, meta } = buildTabxChunkBySize(data);
+    const { chunks, meta, cellLengthTracker } = buildTabxChunkBySize(data);
     for (const [index, chunk] of chunks.entries()) {
         fs.writeFileSync(
             `./output/unified_npc_balloon_chunk_${index}.json`,
@@ -306,5 +336,24 @@ const buildTabxChunkBySize = (
             `./output/unified_npc_balloon_chunk_${index}.json 写入成功。文件大小为${stats.size}字节，条目数${chunk.data.length}。`
         );
         // 此处不再输出表格行，表格已在分chunk时输出
+    }
+
+    // 输出超过400字符的单元格检查结果
+    if (Object.keys(cellLengthTracker).length > 0) {
+        console.log(
+            chalk.yellow(
+                `\n检测到 ${
+                    Object.keys(cellLengthTracker).length
+                } 个条目的单元格长度超过400字符：`
+            )
+        );
+        for (const [uid, items] of Object.entries(cellLengthTracker)) {
+            console.log(chalk.yellow(`  UID: ${uid}`));
+            items.forEach(({ lang, content }) => {
+                console.log(`    ${lang}: ${content.length} 字符`);
+            });
+        }
+    } else {
+        console.log(chalk.green("\n所有单元格长度均不超过400字符。"));
     }
 })();
